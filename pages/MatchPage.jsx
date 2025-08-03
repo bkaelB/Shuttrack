@@ -35,7 +35,7 @@ const MatchPage = () => {
         </div>
 
         <div className="col-span-3">
-          <h2 className="text-xl font-bold mb-4"> sdfsd</h2>
+          <h2 className="text-xl font-bold mb-4"> aray koh!</h2>
         </div>
       </div>
 
