@@ -1,120 +1,119 @@
-import { useEffect, useState } from "react";
-import axios from "axios";
+import { useEffect, useState } from "react"
+import AddQueueButton from "../components/AddQueueButton";
+
+import axios from "axios"
 
 const MatchPage = () => {
-    const [players, setPlayers] = useState([]);
-    const [isLoading, setIsLoading] = useState(true);
-    const [queue, setQueue] = useState([]);
-
-    useEffect(() => {
-        axios.get("http://localhost:3000/api/players")
-            .then((res) => {
-                setPlayers(res.data);
-                setIsLoading(false);
-            })
-            .catch((err) => console.error("Error fetching players:", err));
-    }, []);
-
-const handleAddToQueue = (player) => {
-    setQueue(prevQueue => {
-        const alreadyInQueue = prevQueue.some(p => p.id === player.id);
-        const isFull = prevQueue.length >= 4;
-        if (!alreadyInQueue && !isFull) {
-            return [...prevQueue, player];
-        }
-        return prevQueue;
-    });
-};
+  const [players, setPlayers] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
 
 
-    const handleTogglePaid = (playerId) => {
-        setPlayers(prev =>
-            prev.map(p =>
-                p.id === playerId ? { ...p, paid: !p.paid } : p
-            )
-        );
-    };
+  useEffect(() => {
+    axios.get("http://localhost:3000/api/players")
+      .then((res) => {
+        setPlayers(res.data);
+        setIsLoading(false);
+      })
+      .catch((err) => console.error("Error fetching players", err));
 
-    const renderTeamMatches = () => {
-        const matches = [];
-        for (let i = 0; i < queue.length; i += 4) {
-            const match = queue.slice(i, i + 4);
-            if (match.length === 4) {
-                matches.push(match);
-            }
-        }
-        return matches;
-    };
+  }, []);
 
 
-    return (
-        <div className="p-4 grid grid-cols-4 gap-4">
-            {/* Left Column (1/4 width) */}
-            <div className="col-span-1 space-y-4">
-                <h2 className="text-xl font-bold mb-2">Players</h2>
-                {isLoading ? (
-                    <p>Loading players...</p>
-                ) : (
-                    players.map(player => (
-                        <div
-                            key={player.id}
-                            className="bg-white shadow p-4 rounded-lg"
-                        >
-                            <p className="font-semibold">{player.name}</p>
-                            <p>Level: {player.level}</p>
-                            <p>Games Played: {player.games_played}</p>
-                            <p>
-                                Paid:{" "}
-                                <button
-                                    className={`ml-2 px-2 py-1 rounded ${player.paid ? "bg-green-400" : "bg-red-400"
-                                        }`}
-                                    onClick={() => handleTogglePaid(player.id)}
-                                >
-                                    {player.paid ? "Paid" : "Unpaid"}
-                                </button>
-                            </p>
-                            <button
-                                className="mt-2 bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600"
-                                onClick={() => handleAddToQueue(player)}
-                            >
-                                Add to Queue
-                            </button>
-                        </div>
-                    ))
-                )}
-            </div>
+  const [queuedMatches, setQueuedMatches] = useState([]); //aray to ng matches
+  const [currentMatch, setCurrentMatch] = useState([]); //temp to para sa 4 players
 
-            {/* Right Column (3/4 width) */}
-            <div className="col-span-3">
-                <h2 className="text-xl font-bold mb-4">Match Queue</h2>
-                {renderTeamMatches().map((match, idx) => (
-                    <div
-                        key={idx}
-                        className="bg-gray-100 p-4 rounded-lg shadow mb-4"
-                    >
-                        <div className="text-center font-semibold mb-2">
-                            Team 1: {match[0].name} & {match[1].name} vs Team 2: {match[2].name} & {match[3].name}
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
-                            {/* Team 1 */}
-                            <div className="bg-white p-3 rounded shadow">
-                                <p className="font-bold text-center">Team 1</p>
-                                <p>{match[0].name} - Level {match[0].level}</p>
-                                <p>{match[1].name} - Level {match[1].level}</p>
-                            </div>
+  const handleAddToQueue = (player) => {
+    console.log("Adding player to queue:", player);
+    //prevent duplicate players
+    const isAlreadyQueued =
+      currentMatch.find(p => p.id === player.id) || queuedMatches.some(match => match.find(p => p.id === player.id));
 
-                            {/* Team 2 */}
-                            <div className="bg-white p-3 rounded shadow">
-                                <p className="font-bold text-center">Team 2</p>
-                                <p>{match[2].name} - Level {match[2].level}</p>
-                                <p>{match[3].name} - Level {match[3].level}</p>
-                            </div>
-                        </div>
-                    </div>
-                ))}
-            </div>
+    if (isAlreadyQueued) return;
+
+
+    const updatedCurrent = [...currentMatch, player];
+    if (updatedCurrent.length === 4) {
+      setQueuedMatches(prev => [...prev, updatedCurrent]);
+      setCurrentMatch([]); // reset for next match
+    } else {
+      setCurrentMatch(updatedCurrent);
+    }
+  }
+
+  return (
+    <>
+      <div className="p-4 flex gap-4">
+        {/* Sidebar - Players List */}
+        <div className="space-y-4 w-1/4">
+          <h2 className="text-xl font-bold mb-2">Players</h2>
+          {isLoading ? (
+            <p>Loading players...</p>
+          ) : (
+            players.map(player => (
+              <div className="bg-white shadow p-4 rounded-lg" key={player.id}>
+                <p className="font-semibold">{player.name}</p>
+                <div className="flex space-x-2">
+                  <p>Level: {player.level}</p>
+                  <p>Games Played: {player.games_played}</p>
+                  <AddQueueButton player={player} onAdd={handleAddToQueue} />
+                </div>
+              </div>
+            ))
+          )}
         </div>
-    );
-};
 
-export default MatchPage;
+        {/* Matches Display */}.
+        <div className="w-3/4 space-y-4">
+          {currentMatch.length > 0 && (
+            <div className="border-t pt-4 mt-4">
+              <p className="font-semibold text-lg mb-2">Forming Match...</p>
+              <div className="grid grid-cols-4 gap-4">
+                {currentMatch.map(player => (
+                  <div key={player.id} className="bg-yellow-100 p-4 rounded-lg text-center w-full shadow">
+                    <p className="font-semibold">{player.name}</p>
+                    <div className="flex flex-row justify-center space-x-2 text-sm text-gray-700">
+                      <p>Level: {player.level}</p>
+                      <p>Games Played: {player.games_played}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {/* 🔼 END OF INSERTION */}
+
+          {queuedMatches.map((match, index) => (
+            <div key={index} className="grid grid-cols-5 gap-4 items-center pt-4">
+              {/* Team A - Player 1 & 2 */}
+              {match.slice(0, 2).map(player => (
+                <div key={player.id} className="bg-white shadow p-4 rounded-lg text-center w-full">
+                  <p className="font-semibold">{player.name}</p>
+                  <div className="flex flex-row justify-center space-x-2 text-sm text-gray-600">
+                    <p>Level: {player.level}</p>
+                    <p>Games Played: {player.games_played}</p>
+                  </div>
+                </div>
+              ))}
+
+              {/* VS Divider */}
+              <div className="text-center font-bold text-2xl p-4">VS</div>
+
+              {/* Team B - Player 3 & 4 */}
+              {match.slice(2, 4).map(player => (
+                <div key={player.id} className="bg-white shadow p-4 rounded-lg text-center w-full">
+                  <p className="font-semibold">{player.name}</p>
+                  <div className="flex flex-row justify-center space-x-2 text-sm text-gray-600">
+                    <p>Level: {player.level}</p>
+                    <p>Games Played: {player.games_played}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      </div>
+    </>
+  );
+}
+
+export default MatchPage

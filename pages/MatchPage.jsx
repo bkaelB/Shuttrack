@@ -18,27 +18,51 @@ const MatchPage = () => {
 
   }, []);
 
+  useEffect(() => {
+    axios.get("http://localhost:3000/api/matches")
+      .then((res) => {
+        const rawMatches = res.data;
+
+        // Group players by match_group
+        const grouped = rawMatches.reduce((acc, player) => {
+          const group = acc[player.match_group] || [];
+          group.push(player);
+          acc[player.match_group] = group;
+          return acc;
+        }, {});
+
+        const matchesArray = Object.values(grouped);
+        setQueuedMatches(matchesArray);
+      })
+      .catch((err) => console.error("Error fetching matches", err));
+  }, []);
+  
 
   const [queuedMatches, setQueuedMatches] = useState([]); //aray to ng matches
   const [currentMatch, setCurrentMatch] = useState([]); //temp to para sa 4 players
 
-  const handleAddToQueue = (player) => {
-    console.log("Adding player to queue:", player);
-    //prevent duplicate players
-    const isAlreadyQueued =
-      currentMatch.find(p => p.id === player.id) || queuedMatches.some(match => match.find(p => p.id === player.id));
+ const handleAddToQueue = (player) => {
+  const isAlreadyQueued =
+    currentMatch.find(p => p.id === player.id) ||
+    queuedMatches.some(match => match.find(p => p.id === player.id));
 
-    if (isAlreadyQueued) return;
+  if (isAlreadyQueued) return;
 
-
-    const updatedCurrent = [...currentMatch, player];
-    if (updatedCurrent.length === 4) {
-      setQueuedMatches(prev => [...prev, updatedCurrent]);
-      setCurrentMatch([]); // reset for next match
-    } else {
-      setCurrentMatch(updatedCurrent);
-    }
+  const updatedCurrent = [...currentMatch, player];
+  if (updatedCurrent.length === 4) {
+    // Save to DB
+    axios.post("http://localhost:3000/api/matches", updatedCurrent)
+      .then((res) => {
+        console.log("Match saved to DB", res.data);
+        setQueuedMatches(prev => [...prev, updatedCurrent]);
+        setCurrentMatch([]);
+      })
+      .catch((err) => console.error("Error saving match:", err));
+  } else {
+    setCurrentMatch(updatedCurrent);
   }
+}
+
 
   return (
     <>

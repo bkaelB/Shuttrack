@@ -34,6 +34,34 @@ app.get("/api/players", (req, res) => {
   });
 });
 
+app.get("/api/matches", (req, res) => {
+  db.query(`
+  SELECT 
+    match_queue.id,
+    match_queue.match_group,
+    match_queue.status,
+    players.name AS player_name
+  FROM match_queue
+  JOIN players ON match_queue.player_id = players.id
+`, (err, results) => {
+    if (err) return res.status(500).json({error: err});
+
+    res.status(200).json(results);
+  })
+})
+
+app.post("/api/matches", (req, res) => {
+  const { player_id, match_group, status } = req.body;
+
+  const sql = "INSERT INTO match_queue (player_id, match_group, status) VALUES (?, ?, ?)";
+  const values = [player_id, match_group, status];
+
+  db.query(sql, values, (err, result) => {
+    if (err) return res.status(500).json({ error: err });
+    res.status(201).json({ message: "Match added successfully", matchId: result.insertId });
+  });
+});
+
 
 app.listen(PORT, () => {
   console.log(`Server is running on http://localhost:${PORT}`);

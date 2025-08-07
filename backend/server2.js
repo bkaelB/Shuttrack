@@ -8,34 +8,33 @@ const PORT = 3000;
 app.use(cors());
 app.use(express.json());
 
-//sql connection
-
+// MySQL connection
 const db = mysql.createConnection({
-    host:"localhost",
-    user:"root",
-    password:"",
-    database:"badmin"
+  host: "localhost",
+  user: "root",        
+  password: "",       
+  database: "badminton_queue_system"
 });
 
-db.connect (err => {
+db.connect(err => {
+  if (err) {
+    console.error("Database connection error:", err);
+    return;
+  }
+  console.log("Connected to MySQL database.");
+});
+
+app.get("/api/players", (req, res) => {
+  db.query("SELECT * FROM players", (err, results) => {
     if (err) {
-        console.error("sfsfds", err);
-        return;
+      console.error("Error fetching players:", err);
+      return res.status(500).json({ error: "Database query error" });
     }
-
-    console.log("connected to MysQL database")
+    res.json(results);
+  });
 });
 
-app.get("/api/players", (req,res) => {
-    db.query("SELECT * FROM players", (err, results)=> {
-        if (err) {
-            console.error ("sdfdsfsdfs", err);
-            return res.status(500).json({error:"d bfsdfsdfs"})
-        }
-        res.json(results);
-    });
-});
 
 app.listen(PORT, () => {
-    console.log(`server is running on localhostasfdasfs:${PORT}`)
-})
+  console.log(`Server is running on http://localhost:${PORT}`);
+});
