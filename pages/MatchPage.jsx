@@ -5,7 +5,7 @@ import axios from "axios"
 
 const MatchPage = () => {
   const [players, setPlayers] = useState([]);
-  const [isLoading, setIsLoading] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
 
 
   useEffect(() => {
@@ -19,19 +19,32 @@ const MatchPage = () => {
   }, []);
 
 
-  const [queuedPlayers, setQueuedPlayers] = useState([]);
+  const [queuedMatches, setQueuedMatches] = useState([]); //aray to ng matches
+  const [currentMatch, setCurrentMatch] = useState([]); //temp to para sa 4 players
 
   const handleAddToQueue = (player) => {
-    if (queuedPlayers.length >= 4) return;
-    if (queuedPlayers.find(p => p.id === player.id)) return;
+    console.log("Adding player to queue:", player);
+    //prevent duplicate players
+    const isAlreadyQueued =
+      currentMatch.find(p => p.id === player.id) || queuedMatches.some(match => match.find(p => p.id === player.id));
 
-    setQueuedPlayers(prev => [...prev, player]);
+    if (isAlreadyQueued) return;
+
+
+    const updatedCurrent = [...currentMatch, player];
+    if (updatedCurrent.length === 4) {
+      setQueuedMatches(prev => [...prev, updatedCurrent]);
+      setCurrentMatch([]); // reset for next match
+    } else {
+      setCurrentMatch(updatedCurrent);
+    }
   }
 
   return (
     <>
       <div className="p-4 flex gap-4">
-        <div className=" space-y-4 w-1/4">
+        {/* Sidebar - Players List */}
+        <div className="space-y-4 w-1/4">
           <h2 className="text-xl font-bold mb-2">Players</h2>
           {isLoading ? (
             <p>Loading players...</p>
@@ -49,25 +62,30 @@ const MatchPage = () => {
           )}
         </div>
 
-        <div className="w-3/4 p-4 space-y-4">
-          <div className="grid grid-cols-5 gap-4 items-center w-full">
-            {/* Team A - Player 1 */}
-            {queuedPlayers.slice(0, 2).map(player => (
-              <div className="bg-white shadow p-4 rounded-lg text-center w-full" key={player.id}>
-                <div className="font-semibold">{player.name}</div>
-                <div className="flex flex-row justify-center space-x-2 text-sm text-gray-600">
-                  <p>Level: {player.level}</p>
-                  <p>Games Played: {player.games_played}</p>
-                </div>
+        {/* Matches Display */}.
+        <div className="w-3/4 space-y-4">
+          {currentMatch.length > 0 && (
+            <div className="border-t pt-4 mt-4">
+              <p className="font-semibold text-lg mb-2">Forming Match...</p>
+              <div className="grid grid-cols-4 gap-4">
+                {currentMatch.map(player => (
+                  <div key={player.id} className="bg-yellow-100 p-4 rounded-lg text-center w-full shadow">
+                    <p className="font-semibold">{player.name}</p>
+                    <div className="flex flex-row justify-center space-x-2 text-sm text-gray-700">
+                      <p>Level: {player.level}</p>
+                      <p>Games Played: {player.games_played}</p>
+                    </div>
+                  </div>
+                ))}
               </div>
-            ))}
+            </div>
+          )}
+          {/* 🔼 END OF INSERTION */}
 
-            {/* VS Divider */}
-            {queuedPlayers.length === 4 && (<div className="text-center font-bold text-2xl p-0">VS</div> )}
-            
-
-            {/* Team B - Player 1 */}
-              {queuedPlayers.slice(2, 4).map(player => (
+          {queuedMatches.map((match, index) => (
+            <div key={index} className="grid grid-cols-5 gap-4 items-center pt-4">
+              {/* Team A - Player 1 & 2 */}
+              {match.slice(0, 2).map(player => (
                 <div key={player.id} className="bg-white shadow p-4 rounded-lg text-center w-full">
                   <p className="font-semibold">{player.name}</p>
                   <div className="flex flex-row justify-center space-x-2 text-sm text-gray-600">
@@ -76,11 +94,26 @@ const MatchPage = () => {
                   </div>
                 </div>
               ))}
-          </div>
+
+              {/* VS Divider */}
+              <div className="text-center font-bold text-2xl p-4">VS</div>
+
+              {/* Team B - Player 3 & 4 */}
+              {match.slice(2, 4).map(player => (
+                <div key={player.id} className="bg-white shadow p-4 rounded-lg text-center w-full">
+                  <p className="font-semibold">{player.name}</p>
+                  <div className="flex flex-row justify-center space-x-2 text-sm text-gray-600">
+                    <p>Level: {player.level}</p>
+                    <p>Games Played: {player.games_played}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ))}
         </div>
       </div>
     </>
   );
-};
+}
 
 export default MatchPage
