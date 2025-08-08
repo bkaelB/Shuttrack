@@ -41,11 +41,15 @@ app.get("/api/players", (req, res) => {
 // Fetch queued matches
 app.get("/api/matches", (req, res) => {
   db.query(`
-    SELECT match_queue.match_group, match_queue.player_id, players.name
-    FROM match_queue
-    JOIN players ON match_queue.player_id = players.id
-    WHERE match_queue.status = 'queued'
-    ORDER BY match_queue.match_group, match_queue.player_id
+SELECT 
+    match_queue.match_group, 
+    match_queue.player_id, 
+    players.*
+FROM match_queue
+JOIN players ON match_queue.player_id = players.id
+WHERE match_queue.status = 'queued'
+ORDER BY match_queue.match_group, match_queue.player_id;
+
   `, (err, results) => {
     if (err) {
       console.error("Error fetching matches:", err);
