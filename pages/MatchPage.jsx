@@ -18,50 +18,80 @@ const MatchPage = () => {
 
   }, []);
 
-  useEffect(() => {
-    axios.get("http://localhost:3000/api/matches")
-      .then((res) => {
-        const rawMatches = res.data;
+useEffect(() => {
+  axios.get("http://localhost:3000/api/matches")
+    .then((res) => {
+      const grouped = {};
 
-        // Group players by match_group
-        const grouped = rawMatches.reduce((acc, player) => {
-          const group = acc[player.match_group] || [];
-          group.push(player);
-          acc[player.match_group] = group;
-          return acc;
-        }, {});
+      res.data.forEach(row => {
+        if (!grouped[row.match_group]) {
+          grouped[row.match_group] = [];
+        }
+        grouped[row.match_group].push({
+          id: row.player_id,
+          name: row.name,
+        });
+      });
 
-        const matchesArray = Object.values(grouped);
-        setQueuedMatches(matchesArray);
-      })
-      .catch((err) => console.error("Error fetching matches", err));
-  }, []);
-  
+      // Convert grouped object into array of matches
+      const allMatches = Object.values(grouped);
+      setQueuedMatches(allMatches);
+    });
+}, []);
+
+
+
+
 
   const [queuedMatches, setQueuedMatches] = useState([]); //aray to ng matches
   const [currentMatch, setCurrentMatch] = useState([]); //temp to para sa 4 players
 
- const handleAddToQueue = (player) => {
-  const isAlreadyQueued =
-    currentMatch.find(p => p.id === player.id) ||
-    queuedMatches.some(match => match.find(p => p.id === player.id));
+  const handleAddToQueue = (player) => {
+    const isAlreadyQueued =
+      currentMatch.find(p => p.id === player.id) ||
+      queuedMatches.some(match => match.find(p => p.id === player.id));
 
-  if (isAlreadyQueued) return;
+    if (isAlreadyQueued) return;
 
-  const updatedCurrent = [...currentMatch, player];
-  if (updatedCurrent.length === 4) {
-    // Save to DB
-    axios.post("http://localhost:3000/api/matches", updatedCurrent)
+    const updatedCurrent = [...currentMatch, player];
+    if (updatedCurrent.length === 4) {
+      const formattedMatch = updatedCurrent.map((p) => ({
+        match_group: Date.now().toString(),
+        player_id: p.id,
+        status: "queued"
+      }));
+
+
+      // Save to DB
+      axios.post("http://localhost:3000/api/matches", formattedMatch)
+        .then((res) => {
+          console.log("Match saved to DB", res.data);
+          setQueuedMatches(prev => [...prev, updatedCurrent]);
+          setCurrentMatch([]);
+        })
+        .catch((err) => console.error("Error saving match:", err));
+    } else {
+      setCurrentMatch(updatedCurrent);
+    }
+  };
+
+  const handleStartMatch = () => {
+    const playerIds = currentMatch.map((player) => player.id); 
+
+    axios.post("http://localhost:3000/api/match-status", {
+      playerIds: playerIds,
+      status: "ongoing"
+    })
       .then((res) => {
-        console.log("Match saved to DB", res.data);
-        setQueuedMatches(prev => [...prev, updatedCurrent]);
-        setCurrentMatch([]);
+        console.log("Status updated:", res.data);
+
       })
-      .catch((err) => console.error("Error saving match:", err));
-  } else {
-    setCurrentMatch(updatedCurrent);
-  }
-}
+      .catch((err) => {
+        console.error("Error updating status:", err);
+      });
+  };
+
+
 
 
   return (
@@ -104,12 +134,11 @@ const MatchPage = () => {
               </div>
             </div>
           )}
-          {/* 🔼 END OF INSERTION */}
 
           {queuedMatches.map((match, index) => (
             <div key={index} className="grid grid-cols-5 gap-4 items-center pt-4">
               {/* Team A - Player 1 & 2 */}
-              {match.slice(0, 2).map(player => (
+              {match.slice(0, 2).filter(p => p.name).map(player => (
                 <div key={player.id} className="bg-white shadow p-4 rounded-lg text-center w-full">
                   <p className="font-semibold">{player.name}</p>
                   <div className="flex flex-row justify-center space-x-2 text-sm text-gray-600">
@@ -123,7 +152,7 @@ const MatchPage = () => {
               <div className="text-center font-bold text-2xl p-4">VS</div>
 
               {/* Team B - Player 3 & 4 */}
-              {match.slice(2, 4).map(player => (
+              {match.slice(2, 4).filter(p => p.name).map(player => (
                 <div key={player.id} className="bg-white shadow p-4 rounded-lg text-center w-full">
                   <p className="font-semibold">{player.name}</p>
                   <div className="flex flex-row justify-center space-x-2 text-sm text-gray-600">

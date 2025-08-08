@@ -1,18 +1,20 @@
 import express from "express";
 import mysql from "mysql";
 import cors from "cors";
+import bodyParser from "body-parser";
 
 const app = express();
 const PORT = 3000;
 
 app.use(cors());
 app.use(express.json());
+app.use(bodyParser.urlencoded({ extended: true }));
 
 // MySQL connection
 const db = mysql.createConnection({
   host: "localhost",
-  user: "root",        
-  password: "",       
+  user: "root",
+  password: "",
   database: "badminton_queue_system"
 });
 
@@ -36,31 +38,50 @@ app.get("/api/players", (req, res) => {
 
 app.get("/api/matches", (req, res) => {
   db.query(`
-  SELECT 
-    match_queue.id,
-    match_queue.match_group,
-    match_queue.status,
-    players.name AS player_name
-  FROM match_queue
-  JOIN players ON match_queue.player_id = players.id
+ SELECT match_queue.match_group, match_queue.player_id, players.name
+    FROM match_queue
+    JOIN players ON match_queue.player_id = players.id
+    WHERE match_queue.status = 'queued'
+    ORDER BY match_queue.match_group, match_queue.player_id
 `, (err, results) => {
-    if (err) return res.status(500).json({error: err});
+    if (err) return res.status(500).json({ error: err });
 
     res.status(200).json(results);
   })
 })
 
 app.post("/api/matches", (req, res) => {
-  const { player_id, match_group, status } = req.body;
+  const matchData = req.body;
 
-  const sql = "INSERT INTO match_queue (player_id, match_group, status) VALUES (?, ?, ?)";
-  const values = [player_id, match_group, status];
+  if (!Array.isArray(matchData) || matchData.length !== 4) {
+    return res.status(400).json({ error: "Invalid match data" });
+  }
 
-  db.query(sql, values, (err, result) => {
-    if (err) return res.status(500).json({ error: err });
-    res.status(201).json({ message: "Match added successfully", matchId: result.insertId });
+  const values = matchData.map(({ match_group, player_id, status }) => [
+    match_group,
+    player_id,
+    status
+  ]);
+
+  const sql = `
+    INSERT INTO match_queue (match_group, player_id, status)
+    VALUES ?
+  `;
+
+  db.query(sql, [values], (err, result) => {
+    if (err) {
+      console.error("DB insert error:", err);
+      return res.status(500).json({ error: err.message });
+    }
+
+    res.status(200).json({ success: true, result });
   });
 });
+
+
+
+
+
 
 
 app.listen(PORT, () => {
