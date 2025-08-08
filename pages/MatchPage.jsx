@@ -5,11 +5,11 @@ import axios from "axios";
 const MatchPage = () => {
   const [players, setPlayers] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [queuedMatches, setQueuedMatches] = useState([]); // Array of matches
-  const [currentMatch, setCurrentMatch] = useState([]); // Temp for forming a 4-player match
+  const [queuedMatches, setQueuedMatches] = useState([]);
+  const [currentMatch, setCurrentMatch] = useState([]);
 
-  // Fetch players on mount
-  useEffect(() => {
+  // Extracted function to fetch players
+  const fetchPlayers = () => {
     axios
       .get("http://localhost:3000/api/players")
       .then((res) => {
@@ -17,10 +17,9 @@ const MatchPage = () => {
         setIsLoading(false);
       })
       .catch((err) => console.error("Error fetching players", err));
-  }, []);
+  };
 
-  // Fetch existing queued matches
-  useEffect(() => {
+  const fetchMatches = () => {
     axios.get("http://localhost:3000/api/matches").then((res) => {
       const grouped = {};
 
@@ -33,12 +32,19 @@ const MatchPage = () => {
           name: row.name,
           level: row.level,
           games_played: row.games_played,
+          match_group: row.match_group,
         });
       });
 
       const allMatches = Object.values(grouped);
       setQueuedMatches(allMatches);
     });
+  };
+
+  // Fetch players and matches on mount
+  useEffect(() => {
+    fetchPlayers();
+    fetchMatches();
   }, []);
 
   const handleAddToQueue = (player) => {
@@ -58,7 +64,6 @@ const MatchPage = () => {
         status: "queued",
       }));
 
-      // Save to DB
       axios
         .post("http://localhost:3000/api/matches", formattedMatch)
         .then((res) => {
@@ -72,20 +77,18 @@ const MatchPage = () => {
     }
   };
 
-  const handleStartMatch = () => {
-    const playerIds = currentMatch.map((player) => player.id);
-
-    axios
-      .post("http://localhost:3000/api/match-status", {
-        playerIds: playerIds,
-        status: "ongoing",
-      })
-      .then((res) => {
-        console.log("Status updated:", res.data);
-      })
-      .catch((err) => {
-        console.error("Error updating status:", err);
+  const handleMatchAction = async (matchGroup, actionType) => {
+    try {
+      await axios.delete(`http://localhost:3000/api/matches/group/${matchGroup}`, {
+        params: { type: actionType },
       });
+
+      // ✅ Re-fetch both players and matches
+      fetchMatches();
+      fetchPlayers();
+    } catch (error) {
+      console.error("Error handling match action:", error);
+    }
   };
 
   return (
@@ -132,40 +135,52 @@ const MatchPage = () => {
         )}
 
         {queuedMatches.map((match, index) => (
-          <div
-            key={index}
-            className="grid grid-cols-5 gap-4 items-center pt-4"
-          >
-            {/* Team A - Player 1 & 2 */}
-            {match.slice(0, 2).filter((p) => p.name).map((player) => (
-              <div
-                key={player.id}
-                className="bg-white shadow p-4 rounded-lg text-center w-full"
-              >
-                <p className="font-semibold">{player.name}</p>
-                <div className="flex flex-row justify-center space-x-2 text-sm text-gray-600">
-                  <p>Level: {player.level}</p>
-                  <p>Games Played: {player.games_played}</p>
+          <div key={index} className="space-y-2 border-t pt-4">
+            <div className="grid grid-cols-5 gap-4 items-center">
+              {match.slice(0, 2).map((player) => (
+                <div
+                  key={player.id}
+                  className="bg-white shadow p-4 rounded-lg text-center w-full"
+                >
+                  <p className="font-semibold">{player.name}</p>
+                  <div className="flex flex-row justify-center space-x-2 text-sm text-gray-600">
+                    <p>Level: {player.level}</p>
+                    <p>Games Played: {player.games_played}</p>
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))}
 
-            {/* VS Divider */}
-            <div className="text-center font-bold text-2xl p-4">VS</div>
+              <div className="text-center font-bold text-2xl p-4">VS</div>
 
-            {/* Team B - Player 3 & 4 */}
-            {match.slice(2, 4).filter((p) => p.name).map((player) => (
-              <div
-                key={player.id}
-                className="bg-white shadow p-4 rounded-lg text-center w-full"
-              >
-                <p className="font-semibold">{player.name}</p>
-                <div className="flex flex-row justify-center space-x-2 text-sm text-gray-600">
-                  <p>Level: {player.level}</p>
-                  <p>Games Played: {player.games_played}</p>
+              {match.slice(2, 4).map((player) => (
+                <div
+                  key={player.id}
+                  className="bg-white shadow p-4 rounded-lg text-center w-full"
+                >
+                  <p className="font-semibold">{player.name}</p>
+                  <div className="flex flex-row justify-center space-x-2 text-sm text-gray-600">
+                    <p>Level: {player.level}</p>
+                    <p>Games Played: {player.games_played}</p>
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex gap-2 mt-2">
+              <button
+                onClick={() => handleMatchAction(match[0].match_group, "finish")}
+                className="px-4 py-1 cursor-pointer bg-green-500 text-white rounded hover:bg-green-600"
+              >
+                Finish Match
+              </button>
+              <button
+                onClick={() => handleMatchAction(match[0].match_group, "cancel")}
+                className="px-4 py-1 cursor-pointer bg-red-500 text-white rounded hover:bg-red-600"
+              >
+                Cancel Match
+              </button>
+            </div>
           </div>
         ))}
       </div>

@@ -90,6 +90,44 @@ app.post("/api/matches", (req, res) => {
   });
 });
 
+
+app.delete("/api/matches/group/:matchGroup", (req, res) => {
+  const { matchGroup } = req.params;
+  const { type } = req.query; // 'finish' or 'cancel'
+
+  // Get all players in this match_group
+  db.query(
+    "SELECT player_id FROM match_queue WHERE match_group = ?",
+    [matchGroup],
+    (err, results) => {
+      if (err) return res.status(500).json({ error: "Fetch failed" });
+
+      const playerIds = results.map(row => row.player_id);
+
+      if (type === "finish" && playerIds.length === 4) {
+        // Increment games_played for each player
+        playerIds.forEach(id => {
+          db.query(
+            "UPDATE players SET games_played = games_played + 1 WHERE id = ?",
+            [id]
+          );
+        });
+      }
+
+      // Now delete the match
+      db.query(
+        "DELETE FROM match_queue WHERE match_group = ?",
+        [matchGroup],
+        (err2) => {
+          if (err2) return res.status(500).json({ error: "Delete failed" });
+
+          res.status(200).json({ success: true });
+        }
+      );
+    }
+  );
+});
+
 // Start server
 app.listen(PORT, () => {
   console.log(`Server is running on http://localhost:${PORT}`);
