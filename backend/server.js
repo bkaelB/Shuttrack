@@ -2,6 +2,7 @@ import express from "express";
 import mysql from "mysql";
 import cors from "cors";
 import bodyParser from "body-parser";
+import { v4 as uuidv4 } from "uuid";
 
 const app = express();
 const PORT = 3000;
@@ -26,6 +27,7 @@ db.connect(err => {
   console.log("Connected to MySQL database.");
 });
 
+// Fetch all players
 app.get("/api/players", (req, res) => {
   db.query("SELECT * FROM players", (err, results) => {
     if (err) {
@@ -36,20 +38,24 @@ app.get("/api/players", (req, res) => {
   });
 });
 
+// Fetch queued matches
 app.get("/api/matches", (req, res) => {
   db.query(`
- SELECT match_queue.match_group, match_queue.player_id, players.name
+    SELECT match_queue.match_group, match_queue.player_id, players.name
     FROM match_queue
     JOIN players ON match_queue.player_id = players.id
     WHERE match_queue.status = 'queued'
     ORDER BY match_queue.match_group, match_queue.player_id
-`, (err, results) => {
-    if (err) return res.status(500).json({ error: err });
-
+  `, (err, results) => {
+    if (err) {
+      console.error("Error fetching matches:", err);
+      return res.status(500).json({ error: "Database query error" });
+    }
     res.status(200).json(results);
-  })
-})
+  });
+});
 
+// Create new match (group of 4 players)
 app.post("/api/matches", (req, res) => {
   const matchData = req.body;
 
@@ -57,8 +63,10 @@ app.post("/api/matches", (req, res) => {
     return res.status(400).json({ error: "Invalid match data" });
   }
 
-  const values = matchData.map(({ match_group, player_id, status }) => [
-    match_group,
+  const matchGroup = uuidv4(); // ✅ Generate a new match_group for each match
+
+  const values = matchData.map(({ player_id, status }) => [
+    matchGroup,
     player_id,
     status
   ]);
@@ -78,12 +86,7 @@ app.post("/api/matches", (req, res) => {
   });
 });
 
-
-
-
-
-
-
+// Start server
 app.listen(PORT, () => {
   console.log(`Server is running on http://localhost:${PORT}`);
 });
