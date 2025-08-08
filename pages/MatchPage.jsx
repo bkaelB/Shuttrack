@@ -89,88 +89,89 @@ const MatchPage = () => {
   };
 
   return (
-    <div className="p-4 flex gap-4">
-      {/* Sidebar - Players List */}
-      <div className="space-y-4 w-1/4">
-        <h2 className="text-xl font-bold mb-2">Players</h2>
-        {isLoading ? (
-          <p>Loading players...</p>
-        ) : (
-          players.map((player) => (
-            <div className="bg-white shadow p-4 rounded-lg" key={player.id}>
+  <div className="p-4 flex gap-4 h-screen">
+    {/* Sidebar - Players List */}
+    <div className="space-y-4 w-1/4 h-full overflow-y-auto">
+      <h2 className="text-xl font-bold mb-2">Players</h2>
+      {isLoading ? (
+        <p>Loading players...</p>
+      ) : (
+        players.map((player) => (
+          <div className="bg-white shadow p-4 rounded-lg" key={player.id}>
+            <p className="font-semibold">{player.name}</p>
+            <div className="flex space-x-2">
+              <p>Level: {player.level}</p>
+              <p>Games Played: {player.games_played}</p>
+              <AddQueueButton player={player} onAdd={handleAddToQueue} />
+            </div>
+          </div>
+        ))
+      )}
+    </div>
+
+    {/* Matches Display */}
+    <div className="w-3/4 space-y-4 h-full overflow-y-auto">
+      {currentMatch.length > 0 && (
+        <div className="border-t pt-4 mt-4">
+          <p className="font-semibold text-lg mb-2">Forming Match...</p>
+          <div className="grid grid-cols-4 gap-4">
+            {currentMatch.map((player) => (
+              <div
+                key={player.id}
+                className="bg-yellow-100 p-4 rounded-lg text-center w-full shadow"
+              >
+                <p className="font-semibold">{player.name}</p>
+                <div className="flex flex-row justify-center space-x-2 text-sm text-gray-700">
+                  <p>Level: {player.level}</p>
+                  <p>Games Played: {player.games_played}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {queuedMatches.map((match, index) => (
+        <div
+          key={index}
+          className="grid grid-cols-5 gap-4 items-center pt-4"
+        >
+          {/* Team A */}
+          {match.slice(0, 2).filter((p) => p.name).map((player) => (
+            <div
+              key={player.id}
+              className="bg-white shadow p-4 rounded-lg text-center w-full"
+            >
               <p className="font-semibold">{player.name}</p>
-              <div className="flex space-x-2">
+              <div className="flex flex-row justify-center space-x-2 text-sm text-gray-600">
                 <p>Level: {player.level}</p>
                 <p>Games Played: {player.games_played}</p>
-                <AddQueueButton player={player} onAdd={handleAddToQueue} />
               </div>
             </div>
-          ))
-        )}
-      </div>
+          ))}
 
-      {/* Matches Display */}
-      <div className="w-3/4 space-y-4">
-        {currentMatch.length > 0 && (
-          <div className="border-t pt-4 mt-4">
-            <p className="font-semibold text-lg mb-2">Forming Match...</p>
-            <div className="grid grid-cols-4 gap-4">
-              {currentMatch.map((player) => (
-                <div
-                  key={player.id}
-                  className="bg-yellow-100 p-4 rounded-lg text-center w-full shadow"
-                >
-                  <p className="font-semibold">{player.name}</p>
-                  <div className="flex flex-row justify-center space-x-2 text-sm text-gray-700">
-                    <p>Level: {player.level}</p>
-                    <p>Games Played: {player.games_played}</p>
-                  </div>
-                </div>
-              ))}
+          {/* VS */}
+          <div className="text-center font-bold text-2xl p-4">VS</div>
+
+          {/* Team B */}
+          {match.slice(2, 4).filter((p) => p.name).map((player) => (
+            <div
+              key={player.id}
+              className="bg-white shadow p-4 rounded-lg text-center w-full"
+            >
+              <p className="font-semibold">{player.name}</p>
+              <div className="flex flex-row justify-center space-x-2 text-sm text-gray-600">
+                <p>Level: {player.level}</p>
+                <p>Games Played: {player.games_played}</p>
+              </div>
             </div>
-          </div>
-        )}
-
-        {queuedMatches.map((match, index) => (
-          <div
-            key={index}
-            className="grid grid-cols-5 gap-4 items-center pt-4"
-          >
-            {/* Team A - Player 1 & 2 */}
-            {match.slice(0, 2).filter((p) => p.name).map((player) => (
-              <div
-                key={player.id}
-                className="bg-white shadow p-4 rounded-lg text-center w-full"
-              >
-                <p className="font-semibold">{player.name}</p>
-                <div className="flex flex-row justify-center space-x-2 text-sm text-gray-600">
-                  <p>Level: {player.level}</p>
-                  <p>Games Played: {player.games_played}</p>
-                </div>
-              </div>
-            ))}
-
-            {/* VS Divider */}
-            <div className="text-center font-bold text-2xl p-4">VS</div>
-
-            {/* Team B - Player 3 & 4 */}
-            {match.slice(2, 4).filter((p) => p.name).map((player) => (
-              <div
-                key={player.id}
-                className="bg-white shadow p-4 rounded-lg text-center w-full"
-              >
-                <p className="font-semibold">{player.name}</p>
-                <div className="flex flex-row justify-center space-x-2 text-sm text-gray-600">
-                  <p>Level: {player.level}</p>
-                  <p>Games Played: {player.games_played}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      ))}
     </div>
-  );
+  </div>
+);
+
 };
 
 export default MatchPage;
