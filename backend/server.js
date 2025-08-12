@@ -2,14 +2,18 @@ import express from "express";
 import mysql from "mysql";
 import cors from "cors";
 import bodyParser from "body-parser";
-import { v4 as uuidv4 } from "uuid";
+import {
+  v4 as uuidv4
+} from "uuid";
 
 const app = express();
 const PORT = 3000;
 
 app.use(cors());
 app.use(express.json());
-app.use(bodyParser.urlencoded({ extended: true }));
+app.use(bodyParser.urlencoded({
+  extended: true
+}));
 
 // MySQL connection
 const db = mysql.createConnection({
@@ -32,7 +36,9 @@ app.get("/api/players", (req, res) => {
   db.query("SELECT * FROM players", (err, results) => {
     if (err) {
       console.error("Error fetching players:", err);
-      return res.status(500).json({ error: "Database query error" });
+      return res.status(500).json({
+        error: "Database query error"
+      });
     }
     res.json(results);
   });
@@ -42,18 +48,21 @@ app.get("/api/players", (req, res) => {
 app.get("/api/matches", (req, res) => {
   db.query(`
 SELECT 
-    match_queue.match_group, 
-    match_queue.player_id, 
-    players.*
+  match_queue.match_group, 
+  match_queue.player_id, 
+  players.*,
+  match_queue.status   
 FROM match_queue
 JOIN players ON match_queue.player_id = players.id
-WHERE match_queue.status = 'queued'
 ORDER BY match_queue.match_group, match_queue.player_id;
+
 
   `, (err, results) => {
     if (err) {
       console.error("Error fetching matches:", err);
-      return res.status(500).json({ error: "Database query error" });
+      return res.status(500).json({
+        error: "Database query error"
+      });
     }
     res.status(200).json(results);
   });
@@ -64,15 +73,19 @@ app.post("/api/matches", (req, res) => {
   const matchData = req.body;
 
   if (!Array.isArray(matchData) || matchData.length !== 4) {
-    return res.status(400).json({ error: "Invalid match data" });
+    return res.status(400).json({
+      error: "Invalid match data"
+    });
   }
 
-  const matchGroup = uuidv4(); // ✅ Generate a new match_group for each match
+  const matchGroup = uuidv4();
 
-  const values = matchData.map(({ player_id, status }) => [
+  const values = matchData.map(({
+    player_id
+  }) => [
     matchGroup,
     player_id,
-    status
+    "queued"
   ]);
 
   const sql = `
@@ -83,24 +96,62 @@ app.post("/api/matches", (req, res) => {
   db.query(sql, [values], (err, result) => {
     if (err) {
       console.error("DB insert error:", err);
-      return res.status(500).json({ error: err.message });
+      return res.status(500).json({
+        error: err.message
+      });
     }
 
-    res.status(200).json({ success: true, result });
+    res.status(200).json({
+      success: true,
+      result
+    });
   });
 });
 
 
+
+
+// Start match (update status to 'ongoing')
+app.patch("/api/matches/group/:matchGroup/start", (req, res) => {
+  const {
+    matchGroup
+  } = req.params;
+
+  db.query(
+    "UPDATE match_queue SET status = 'ongoing' WHERE match_group = ?",
+    [matchGroup],
+    (err, result) => {
+      if (err) {
+        console.error("Error starting match:", err);
+        return res.status(500).json({
+          error: "Database update failed"
+        });
+      }
+      res.status(200).json({
+        success: true
+      });
+    }
+  );
+});
+
+
+
 app.delete("/api/matches/group/:matchGroup", (req, res) => {
-  const { matchGroup } = req.params;
-  const { type } = req.query; // 'finish' or 'cancel'
+  const {
+    matchGroup
+  } = req.params;
+  const {
+    type
+  } = req.query; // 'finish' or 'cancel'
 
   // Get all players in this match_group
   db.query(
     "SELECT player_id FROM match_queue WHERE match_group = ?",
     [matchGroup],
     (err, results) => {
-      if (err) return res.status(500).json({ error: "Fetch failed" });
+      if (err) return res.status(500).json({
+        error: "Fetch failed"
+      });
 
       const playerIds = results.map(row => row.player_id);
 
@@ -119,9 +170,13 @@ app.delete("/api/matches/group/:matchGroup", (req, res) => {
         "DELETE FROM match_queue WHERE match_group = ?",
         [matchGroup],
         (err2) => {
-          if (err2) return res.status(500).json({ error: "Delete failed" });
+          if (err2) return res.status(500).json({
+            error: "Delete failed"
+          });
 
-          res.status(200).json({ success: true });
+          res.status(200).json({
+            success: true
+          });
         }
       );
     }
