@@ -28,7 +28,7 @@ db.connect((err) => {
 
 // Fetch all players ordered by level
 app.get("/api/players", (req, res) => {
-  const sql = `SELECT * FROM players ORDER BY level ASC`;
+  const sql = `SELECT * FROM players ORDER BY done_playing, level ASC`;
   db.query(sql, (err, results) => {
     if (err) {
       console.error("Error fetching players:", err);
