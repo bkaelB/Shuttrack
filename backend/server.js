@@ -2,7 +2,6 @@ import express from "express";
 import mysql from "mysql";
 import cors from "cors";
 import bodyParser from "body-parser";
-import { v4 as uuidv4 } from "uuid";
 
 const app = express();
 const PORT = 3000;
@@ -16,10 +15,10 @@ const db = mysql.createConnection({
   host: "localhost",
   user: "root",
   password: "",
-  database: "badminton_queue_system"
+  database: "badminton_queue_system",
 });
 
-db.connect(err => {
+db.connect((err) => {
   if (err) {
     console.error("Database connection error:", err);
     return;
@@ -27,9 +26,10 @@ db.connect(err => {
   console.log("Connected to MySQL database.");
 });
 
-// Fetch all players
+// Fetch all players ordered by level
 app.get("/api/players", (req, res) => {
-  db.query("SELECT * FROM players", (err, results) => {
+  const sql = `SELECT * FROM players ORDER BY level ASC`;
+  db.query(sql, (err, results) => {
     if (err) {
       console.error("Error fetching players:", err);
       return res.status(500).json({ error: "Database query error" });
@@ -38,9 +38,73 @@ app.get("/api/players", (req, res) => {
   });
 });
 
-// Fetch queued matches (ORDERED by creation time)
+// Fetch players who are done playing (for Payment Page)
+app.get("/api/players/done", (req, res) => {
+  const sql = `
+    SELECT id, name, level, done_playing, paid_status, payment_mode, games_played, total_due
+    FROM players
+    WHERE done_playing = 1
+    ORDER BY name ASC
+  `;
+  db.query(sql, (err, results) => {
+    if (err) {
+      console.error("Error fetching done players:", err);
+      return res.status(500).json({ error: "Database query error" });
+    }
+    res.json(results);
+  });
+});
+
+// Update payment info for a player
+app.put("/api/players/:id/payment", (req, res) => {
+  const playerId = req.params.id;
+  const { paid_status, payment_mode } = req.body;
+
+  const sql = `
+    UPDATE players 
+    SET paid_status = ?, payment_mode = ?
+    WHERE id = ?
+  `;
+
+  db.query(sql, [paid_status, payment_mode, playerId], (err, result) => {
+    if (err) {
+      console.error("Error updating payment info:", err);
+      return res.status(500).json({ error: err.message });
+    }
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: "Player not found" });
+    }
+    res.json({ message: "Payment info updated successfully" });
+  });
+});
+
+// Mark player as done playing
+app.put("/api/players/:id/status", (req, res) => {
+  const playerId = req.params.id;
+  const { status } = req.body;
+  const donePlayingFlag = status.toLowerCase() === "done playing" ? 1 : 0;
+
+  const sql = `
+    UPDATE players 
+    SET done_playing = ?
+    WHERE id = ?
+  `;
+
+  db.query(sql, [donePlayingFlag, playerId], (err, result) => {
+    if (err) {
+      console.error("Error updating done_playing:", err);
+      return res.status(500).json({ error: err.message });
+    }
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: "Player not found" });
+    }
+    res.json({ message: "Player status updated successfully" });
+  });
+});
+
+// Fetch queued matches (JOIN players info)
 app.get("/api/matches", (req, res) => {
-  db.query(`
+  const sql = `
     SELECT 
       match_queue.match_group, 
       match_queue.player_id, 
@@ -49,8 +113,10 @@ app.get("/api/matches", (req, res) => {
       match_queue.match_created_at
     FROM match_queue
     JOIN players ON match_queue.player_id = players.id
-    ORDER BY match_created_at ASC, match_group ASC, player_id ASC
-  `, (err, results) => {
+    ORDER BY match_queue.match_created_at ASC, match_queue.match_group ASC
+  `;
+
+  db.query(sql, (err, results) => {
     if (err) {
       console.error("Error fetching matches:", err);
       return res.status(500).json({ error: "Database query error" });
@@ -61,20 +127,20 @@ app.get("/api/matches", (req, res) => {
 
 // Create new match (group of 4 players)
 app.post("/api/matches", (req, res) => {
-  const matchData = req.body;
+  const matchData = req.body; // expect array of { match_group, player_id, status }
 
-  // Get the latest match_group from the DB
   db.query("SELECT MAX(match_group) AS max_group FROM match_queue", (err, results) => {
     if (err) return res.status(500).json({ error: err });
 
-    const nextGroup = (results[0].max_group || 0) + 1; // start at 1 if null
+    // Use max group + 1 or 1 if null
+    const nextGroup = (results[0].max_group || 0) + 1;
 
     const now = new Date();
     const values = matchData.map(({ player_id }) => [
       nextGroup,
       player_id,
       "queued",
-      now
+      now,
     ]);
 
     const sql = `
@@ -89,8 +155,7 @@ app.post("/api/matches", (req, res) => {
   });
 });
 
-
-// Start match (update status to 'ongoing')
+// Start match (update status to 'ongoing' for a match group)
 app.patch("/api/matches/group/:matchGroup/start", (req, res) => {
   const { matchGroup } = req.params;
 
@@ -107,7 +172,7 @@ app.patch("/api/matches/group/:matchGroup/start", (req, res) => {
   );
 });
 
-// Finish or cancel match
+// Finish or cancel match, update games played and total_due if finished
 app.delete("/api/matches/group/:matchGroup", (req, res) => {
   const { matchGroup } = req.params;
   const { type } = req.query; // 'finish' or 'cancel'
@@ -118,26 +183,38 @@ app.delete("/api/matches/group/:matchGroup", (req, res) => {
     (err, results) => {
       if (err) return res.status(500).json({ error: "Fetch failed" });
 
-      const playerIds = results.map(row => row.player_id);
+      const playerIds = results.map((row) => row.player_id);
 
       if (type === "finish" && playerIds.length === 4) {
-        playerIds.forEach(id => {
-          db.query(
-            "UPDATE players SET games_played = games_played + 1 WHERE id = ?",
-            [id]
-          );
-        });
+        db.query(
+          `UPDATE players 
+           SET games_played = games_played + 1, 
+               total_due = total_due + 30 
+           WHERE id IN (?)`,
+          [playerIds],
+          (err) => {
+            if (err) {
+              console.error("Error updating players after finishing match:", err);
+              return res.status(500).json({ error: "Update players failed" });
+            }
+            deleteMatchQueue();
+          }
+        );
+      } else {
+        deleteMatchQueue();
       }
 
-      db.query(
-        "DELETE FROM match_queue WHERE match_group = ?",
-        [matchGroup],
-        (err2) => {
-          if (err2) return res.status(500).json({ error: "Delete failed" });
+      function deleteMatchQueue() {
+        db.query(
+          "DELETE FROM match_queue WHERE match_group = ?",
+          [matchGroup],
+          (err2) => {
+            if (err2) return res.status(500).json({ error: "Delete failed" });
 
-          res.status(200).json({ success: true });
-        }
-      );
+            res.status(200).json({ success: true });
+          }
+        );
+      }
     }
   );
 });
