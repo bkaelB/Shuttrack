@@ -125,6 +125,40 @@ app.get("/api/matches", (req, res) => {
   });
 });
 
+// expenses
+app.get("/api/expenses/summary", (req, res) => {
+  const sql = `
+    SELECT 
+      type, 
+      SUM(amount) AS total_amount 
+    FROM expenses 
+    GROUP BY type
+  `;
+  db.query(sql, (err, results) => {
+    if (err) return res.status(500).json({ error: err.message });
+
+    // Transform results to object { shuttlecock: x, court: y }
+    const summary = { shuttlecock: 0, court: 0 };
+    results.forEach(row => {
+      summary[row.type] = row.total_amount;
+    });
+    res.json(summary);
+  });
+});
+
+app.get("/api/expenses", (req, res) => {
+  const sql = "SELECT * FROM expenses ORDER BY created_at DESC";
+  db.query(sql, (err, results) => {
+    if (err) {
+      console.error("Error fetching expenses:", err);
+      return res.status(500).json({ error: "Database query error" });
+    }
+    res.json(results);
+  });
+});
+
+
+
 // Create new match (group of 4 players)
 app.post("/api/matches", (req, res) => {
   const matchData = req.body; // expect array of { match_group, player_id, status }
@@ -154,6 +188,28 @@ app.post("/api/matches", (req, res) => {
     });
   });
 });
+
+// expense
+
+app.post("/api/expenses", (req, res) => {
+  const { type, amount } = req.body;
+
+  if (!type || !amount || isNaN(amount)) {
+    return res.status(400).json({ error: "Invalid input" });
+  }
+
+  const sql = "INSERT INTO expenses (type, amount, created_at) VALUES (?, ?, NOW())";
+
+  db.query(sql, [type, amount], (err, result) => {
+    if (err) {
+      console.error("Failed to insert expense:", err);
+      return res.status(500).json({ error: err.message });
+    }
+    res.status(201).json({ message: "Expense added successfully" });
+  });
+});
+
+
 
 // Start match (update status to 'ongoing' for a match group)
 app.patch("/api/matches/group/:matchGroup/start", (req, res) => {
