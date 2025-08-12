@@ -192,22 +192,82 @@ app.post("/api/matches", (req, res) => {
 // expense
 
 app.post("/api/expenses", (req, res) => {
-  const { type, amount } = req.body;
+  const { type, amount, deduct_from } = req.body;
 
-  if (!type || !amount || isNaN(amount)) {
-    return res.status(400).json({ error: "Invalid input" });
+  if (!type || !amount || !deduct_from) {
+    return res.status(400).json({ error: "Missing expense type, amount or deduct_from" });
   }
 
-  const sql = "INSERT INTO expenses (type, amount, created_at) VALUES (?, ?, NOW())";
+  // First, get the total payments and total expenses per payment method
+  const getTotalsQuery = `
+    SELECT
+      SUM(CASE WHEN payment_mode = 'cash' AND paid_status = 'paid' THEN games_played * 30 ELSE 0 END) AS total_cash_received,
+      SUM(CASE WHEN payment_mode = 'gcash' AND paid_status = 'paid' THEN games_played * 30 ELSE 0 END) AS total_gcash_received
+    FROM players;
+  `;
 
-  db.query(sql, [type, amount], (err, result) => {
+  const getExpensesQuery = `
+    SELECT
+      SUM(CASE WHEN deduct_from = 'cash' THEN amount ELSE 0 END) AS total_cash_expenses,
+      SUM(CASE WHEN deduct_from = 'gcash' THEN amount ELSE 0 END) AS total_gcash_expenses,
+      SUM(CASE WHEN deduct_from = 'both' THEN amount ELSE 0 END) AS total_both_expenses
+    FROM expenses;
+  `;
+
+  db.query(getTotalsQuery, (err, totalsResult) => {
     if (err) {
-      console.error("Failed to insert expense:", err);
-      return res.status(500).json({ error: err.message });
+      console.error("Error fetching payment totals:", err);
+      return res.status(500).json({ error: "Failed to get payment totals" });
     }
-    res.status(201).json({ message: "Expense added successfully" });
+
+    db.query(getExpensesQuery, (err2, expensesResult) => {
+      if (err2) {
+        console.error("Error fetching expenses totals:", err2);
+        return res.status(500).json({ error: "Failed to get expenses totals" });
+      }
+
+      const cashReceived = totalsResult[0].total_cash_received || 0;
+      const gcashReceived = totalsResult[0].total_gcash_received || 0;
+
+      const cashExpenses = expensesResult[0].total_cash_expenses || 0;
+      const gcashExpenses = expensesResult[0].total_gcash_expenses || 0;
+      const bothExpenses = expensesResult[0].total_both_expenses || 0;
+
+      // Calculate current balances
+      // Since 'both' expenses deduct from both cash and gcash equally, split it half-half
+      const cashBalance = cashReceived - cashExpenses - bothExpenses / 2;
+      const gcashBalance = gcashReceived - gcashExpenses - bothExpenses / 2;
+
+      // Validate deduction amount depending on deduct_from
+      if (deduct_from === "cash" && amount > cashBalance) {
+        return res.status(400).json({ error: `Insufficient cash balance. Available: ₱${cashBalance}` });
+      }
+
+      if (deduct_from === "gcash" && amount > gcashBalance) {
+        return res.status(400).json({ error: `Insufficient GCash balance. Available: ₱${gcashBalance}` });
+      }
+
+      if (deduct_from === "both" && amount > cashBalance + gcashBalance) {
+        return res.status(400).json({ error: `Insufficient combined balance. Available: ₱${cashBalance + gcashBalance}` });
+      }
+
+      // If valid, insert the expense
+      const sql = `
+        INSERT INTO expenses (type, amount, deduct_from, created_at)
+        VALUES (?, ?, ?, NOW())
+      `;
+
+      db.query(sql, [type, amount, deduct_from], (err3) => {
+        if (err3) {
+          console.error("Error inserting expense:", err3);
+          return res.status(500).json({ error: "Failed to add expense" });
+        }
+        res.status(201).json({ message: "Expense added successfully" });
+      });
+    });
   });
 });
+
 
 
 
