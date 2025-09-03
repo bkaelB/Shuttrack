@@ -34,6 +34,17 @@ const Navbar = () => {
           >
             Payments
           </NavLink>
+
+          <NavLink
+            to="matchHistory"
+            className={({ isActive }) =>
+              isActive
+                ? "text-indigo-600 font-semibold"
+                : "text-gray-700 hover:text-indigo-500"
+            }
+          >
+            Match History
+          </NavLink>
         </div>
       </div>
     </nav>
